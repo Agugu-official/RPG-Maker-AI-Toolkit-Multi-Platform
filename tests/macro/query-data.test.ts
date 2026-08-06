@@ -141,6 +141,37 @@ describe("handleQueryData", () => {
     });
   });
 
+  describe("plugins", () => {
+    it.each(["mz", "mv"])("routes plugin reads on the %s engine", async (engine) => {
+      const handler = makeHandler(JSON.stringify({ plugins: [] }));
+      mockResolveHandler.mockReturnValue(handler);
+      const ctx = makeCtx({ type: "plugins" }, engine);
+      await handleQueryData(ctx);
+      expect(mockResolveHandler).toHaveBeenCalledWith("manage-plugins", engine);
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({
+        input: { action: "list", include_parameters: false },
+      }));
+    });
+
+    it("passes include_parameters to the plugin listing handler", async () => {
+      const handler = makeHandler(JSON.stringify({ plugins: [] }));
+      mockResolveHandler.mockReturnValue(handler);
+      const ctx = makeCtx({ type: "plugins", include_parameters: true }, "mv");
+      await handleQueryData(ctx);
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({
+        input: { action: "list", include_parameters: true },
+      }));
+    });
+
+    it.each(["vxace", "vx", "xp"])("rejects JS plugin reads on the %s engine", async (engine) => {
+      const ctx = makeCtx({ type: "plugins" }, engine);
+      const result = JSON.parse(await handleQueryData(ctx));
+      expect(result.error).toMatch(/MZ\/MV/i);
+      expect(result.error).toMatch(/Ruby scripts/i);
+      expect(mockResolveHandler).not.toHaveBeenCalled();
+    });
+  });
+
   describe("search", () => {
     it("routes to search-entity with all search fields", async () => {
       const handler = makeHandler(JSON.stringify({ results: [] }));

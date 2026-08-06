@@ -30,7 +30,22 @@ export const PluginManageTool: Tool = {
       data: {
         type: "object",
         description: "Operation-specific fields — passed directly to the internal handler",
-        properties: {},
+        properties: {
+          action: {
+            type: "string",
+            enum: ["list", "enable", "disable", "delete"],
+            description: "Management action when outer action=manage",
+          },
+          plugin_name: {
+            type: "string",
+            description: "Plugin name without .js extension",
+          },
+          include_parameters: {
+            type: "boolean",
+            description: "Include full parameter objects when listing plugins (default: true for plugin-manage)",
+          },
+        },
+        additionalProperties: true,
       },
     },
     required: ["action", "data"],

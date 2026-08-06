@@ -1,6 +1,8 @@
 import type { HandlerContext } from "../../handlers/types.js";
 import { resolveHandler } from "../../core/resolve-handler.js";
 
+const RUBY_ENGINES = new Set(["vxace", "vx", "xp"]);
+
 export async function handleQueryData(ctx: HandlerContext): Promise<string> {
   const input = ctx.input;
   const type = input.type as string;
@@ -40,6 +42,15 @@ export async function handleQueryData(ctx: HandlerContext): Promise<string> {
     case "tileset":
       toolName = "read-tileset";
       childInput = { tileset_id: input.id, include_flags: input.include_flags };
+      break;
+    case "plugins":
+      if (RUBY_ENGINES.has(ctx.engine)) {
+        return JSON.stringify({
+          error: `Plugin queries are only available for RPG Maker MZ/MV. RPG Maker ${ctx.engine} uses Ruby scripts; use plugin-manage script actions instead.`,
+        });
+      }
+      toolName = "manage-plugins";
+      childInput = { action: "list", include_parameters: input.include_parameters === true };
       break;
     case "search":
       toolName = "search-entity";

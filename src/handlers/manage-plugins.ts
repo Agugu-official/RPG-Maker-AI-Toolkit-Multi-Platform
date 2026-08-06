@@ -10,7 +10,48 @@ export async function handleManagePlugins(ctx: HandlerContext): Promise<string> 
   try {
     if (action === "list") {
       const plugins = writer.listPlugins();
-      return JSON.stringify({ success: true, count: plugins.length, plugins });
+      const includeParameters = input.include_parameters !== false;
+      const pluginsDir = path.join(projectPath, "js", "plugins");
+      const pluginFiles = fs.existsSync(pluginsDir)
+        ? fs.readdirSync(pluginsDir, { withFileTypes: true })
+            .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith(".js"))
+            .map((entry) => entry.name)
+            .sort((a, b) => a.localeCompare(b))
+        : [];
+      const fileNames = new Set(pluginFiles.map((filename) => filename.replace(/\.js$/i, "")));
+      const registeredNames = new Set(plugins.map((plugin) => plugin.name));
+      const isSeparator = (name: string) => /^-+$/.test(name.trim());
+      const actualPlugins = plugins.filter((plugin) => !isSeparator(plugin.name));
+      const listedPlugins = plugins.map((plugin, index) => {
+        const base = {
+          name: plugin.name,
+          status: plugin.status,
+          description: plugin.description,
+          index,
+          file_exists: fileNames.has(plugin.name),
+          is_separator: isSeparator(plugin.name),
+        };
+        return includeParameters ? { ...base, parameters: plugin.parameters } : base;
+      });
+      const missingFiles = actualPlugins
+        .filter((plugin) => !fileNames.has(plugin.name))
+        .map((plugin) => `${plugin.name}.js`);
+      const unregisteredFiles = pluginFiles.filter(
+        (filename) => !registeredNames.has(filename.replace(/\.js$/i, "")),
+      );
+
+      return JSON.stringify({
+        success: true,
+        count: plugins.length,
+        plugin_count: actualPlugins.length,
+        separator_count: plugins.length - actualPlugins.length,
+        enabled_count: actualPlugins.filter((plugin) => plugin.status).length,
+        disabled_count: actualPlugins.filter((plugin) => !plugin.status).length,
+        file_count: pluginFiles.length,
+        plugins: listedPlugins,
+        missing_files: missingFiles,
+        unregistered_files: unregisteredFiles,
+      });
     }
 
     if (!pluginName) {

@@ -28,6 +28,7 @@ function createTempProject(): string {
 
   fs.writeFileSync(path.join(jsDir, "plugins.js"), PLUGINS_JS_CONTENT, "utf-8");
   fs.writeFileSync(path.join(pluginsDir, "PluginA.js"), "// PluginA", "utf-8");
+  fs.writeFileSync(path.join(pluginsDir, "Orphan.js"), "// not registered", "utf-8");
 
   return dir;
 }
@@ -54,7 +55,25 @@ describe("handleManagePlugins", () => {
     const result = JSON.parse(await handleManagePlugins(makeCtx(dir, { action: "list" })));
     expect(result.success).toBe(true);
     expect(result.count).toBe(2);
+    expect(result.plugin_count).toBe(2);
+    expect(result.separator_count).toBe(0);
+    expect(result.enabled_count).toBe(1);
+    expect(result.disabled_count).toBe(1);
+    expect(result.file_count).toBe(2);
     expect(result.plugins.map((p: { name: string }) => p.name)).toEqual(["PluginA", "PluginB"]);
+    expect(result.plugins[0]).toMatchObject({ index: 0, file_exists: true, is_separator: false });
+    expect(result.plugins[1]).toMatchObject({ index: 1, file_exists: false, is_separator: false });
+    expect(result.missing_files).toEqual(["PluginB.js"]);
+    expect(result.unregistered_files).toEqual(["Orphan.js"]);
+  });
+
+  it("can omit verbose plugin parameters", async () => {
+    const result = JSON.parse(await handleManagePlugins(makeCtx(dir, {
+      action: "list",
+      include_parameters: false,
+    })));
+    expect(result.success).toBe(true);
+    expect(result.plugins[0]).not.toHaveProperty("parameters");
   });
 
   it("enables a disabled plugin", async () => {

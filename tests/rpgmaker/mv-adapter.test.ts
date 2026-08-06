@@ -87,4 +87,26 @@ describe("MVWriter", () => {
     const actor = reader.readActor(1);
     expect(actor?.name).toBe("MVHero");
   });
+
+  it("reads the MV plugins.js registry", () => {
+    const dir = createTempProject();
+    dirs.push(dir);
+    const jsDir = path.join(dir, "js");
+    fs.mkdirSync(jsDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(jsDir, "plugins.js"),
+      'var $plugins = [{"name":"MVPlugin","status":true,"description":"MV test","parameters":{"mode":"test"}}];\n',
+      "utf-8",
+    );
+
+    const writer = new MVWriter({ projectPath: dir, createBackup: false });
+    expect(writer.listPlugins()).toEqual([
+      {
+        name: "MVPlugin",
+        status: true,
+        description: "MV test",
+        parameters: { mode: "test" },
+      },
+    ]);
+  });
 });

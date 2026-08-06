@@ -1,13 +1,13 @@
 export const QueryDataTool = {
   name: "query-data",
   description:
-    "Read data from the RPG Maker project: list entities, read a specific entity, read map details, list maps, browse assets, query the game system config, read animations or tilesets, search entities, or get a full project summary.",
+    "Read data from the RPG Maker project: list entities, read a specific entity, read map details, list maps, browse assets, query the game system config, read animations or tilesets, list MZ/MV plugins, search entities, or get a full project summary.",
   inputSchema: {
     type: "object" as const,
     properties: {
       type: {
         type: "string",
-        enum: ["list", "entity", "map", "maps", "resources", "system", "animation", "tileset", "search", "summary"],
+        enum: ["list", "entity", "map", "maps", "resources", "system", "animation", "tileset", "plugins", "search", "summary"],
         description:
           "What to query. " +
           "list: list all entities of a given type (requires data_type). " +
@@ -18,6 +18,7 @@ export const QueryDataTool = {
           "system: read System.json sections (optional section). " +
           "animation: read one animation (requires id) or list all (omit id). " +
           "tileset: read one tileset (requires id) or list all (omit id). " +
+          "plugins: list MZ/MV plugin registry entries and plugin files. " +
           "search: text search across entities (requires entity_type, query). " +
           "summary: full project overview.",
       },
@@ -60,6 +61,11 @@ export const QueryDataTool = {
       include_encounters: {
         type: "boolean",
         description: "Include encounter list in the map read (for type=map, default: true)",
+      },
+      // for "plugins"
+      include_parameters: {
+        type: "boolean",
+        description: "Include full plugin parameter objects (for type=plugins, default: false)",
       },
       // for "search"
       query: { type: "string", description: "Case-insensitive search string (required for type=search)" },

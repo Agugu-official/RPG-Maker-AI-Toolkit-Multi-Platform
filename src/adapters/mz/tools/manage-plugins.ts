@@ -16,6 +16,10 @@ export const ManagePluginsTool: Tool = {
         type: "string",
         description: "Plugin name without .js extension. Required for enable, disable, delete.",
       },
+      include_parameters: {
+        type: "boolean",
+        description: "Include full parameter objects when listing plugins (default: true)",
+      },
     },
     required: ["action"],
   },

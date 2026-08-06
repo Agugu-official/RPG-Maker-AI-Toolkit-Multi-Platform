@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { handlePluginManage } from "../../src/macro/handlers/plugin-manage.js";
+import { PluginManageTool } from "../../src/macro/schemas/plugin-manage.js";
 import type { HandlerContext } from "../../src/handlers/types.js";
 
 vi.mock("../../src/core/resolve-handler.js", () => ({
@@ -32,6 +33,17 @@ beforeEach(() => {
 });
 
 describe("handlePluginManage", () => {
+  it("declares nested manage fields in the public schema", () => {
+    const dataSchema = PluginManageTool.inputSchema.properties?.data as {
+      properties?: Record<string, unknown>;
+      additionalProperties?: boolean;
+    };
+    expect(dataSchema.properties).toHaveProperty("action");
+    expect(dataSchema.properties).toHaveProperty("plugin_name");
+    expect(dataSchema.properties).toHaveProperty("include_parameters");
+    expect(dataSchema.additionalProperties).toBe(true);
+  });
+
   it("returns error for unknown action", async () => {
     const ctx = makeCtx({ action: "nope", data: {} });
     const result = JSON.parse(await handlePluginManage(ctx));
