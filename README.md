@@ -76,6 +76,62 @@ npm start
 
 When the server starts you will see `✓ RPG Maker project found at: …` in the console.
 
+### Connecting the ChatGPT desktop app and Codex
+
+This server exposes MCP over local **STDIO**. The recommended setup is to register the compiled `dist/index.js` as an STDIO server; the ChatGPT desktop app, Codex CLI, and Codex IDE extension share the same MCP configuration on a Codex host. See OpenAI's [Model Context Protocol documentation](https://learn.chatgpt.com/docs/extend/mcp).
+
+Run `npm run build` first, then use absolute paths appropriate for your operating system:
+
+| Value | macOS example | Windows example |
+|---|---|---|
+| Node executable | `/opt/homebrew/bin/node` (Apple Silicon) or `/usr/local/bin/node` (Intel) | `C:\Program Files\nodejs\node.exe` |
+| Toolkit entry point | `/Users/your-name/Projects/RPG-Maker-AI-Toolkit-Multi-Platform/dist/index.js` | `C:\Users\your-name\Projects\RPG-Maker-AI-Toolkit-Multi-Platform\dist\index.js` |
+| Toolkit working directory | `/Users/your-name/Projects/RPG-Maker-AI-Toolkit-Multi-Platform` | `C:\Users\your-name\Projects\RPG-Maker-AI-Toolkit-Multi-Platform` |
+| RPG Maker project | `/Users/your-name/Documents/Games/MyGame` | `C:\Users\your-name\Documents\Games\MyGame` |
+
+Use `command -v node` on macOS or `(Get-Command node).Source` in Windows PowerShell to find the real Node executable. Windows paths can use single backslashes in the ChatGPT app fields and in quoted PowerShell arguments; doubled backslashes are only required inside formats such as JSON strings.
+
+#### ChatGPT desktop app
+
+1. Open **Settings → MCP servers → Add server**.
+2. Set the name to `rpgmaker` and choose **STDIO**.
+3. Set **Command**, **Arguments**, and **Working directory** using the matching row above. The only argument is the absolute path to `dist/index.js`.
+4. Add these environment variables:
+
+   ```text
+   RPGMAKER_PROJECT_PATH=<absolute path to the RPG Maker project>
+   RPGMAKER_ENGINE=mz
+   ```
+
+   Change the engine to `mv`, `vxace`, `vx`, or `xp` when required. Ruby engines may also need `RUBY_PATH`.
+5. Save the server and select **Restart**. Enter `/mcp` in the composer to confirm that `rpgmaker` is connected.
+
+#### Codex CLI and IDE extension
+
+The CLI is the most reproducible way to create the shared configuration. On macOS, run:
+
+```bash
+codex mcp add rpgmaker \
+  --env RPGMAKER_PROJECT_PATH="/Users/your-name/Documents/Games/MyGame" \
+  --env RPGMAKER_ENGINE=mz \
+  -- "/opt/homebrew/bin/node" \
+  "/Users/your-name/Projects/RPG-Maker-AI-Toolkit-Multi-Platform/dist/index.js"
+```
+
+On Windows PowerShell, run:
+
+```powershell
+codex mcp add rpgmaker `
+  --env "RPGMAKER_PROJECT_PATH=C:\Users\your-name\Documents\Games\MyGame" `
+  --env RPGMAKER_ENGINE=mz `
+  -- "C:\Program Files\nodejs\node.exe" `
+  "C:\Users\your-name\Projects\RPG-Maker-AI-Toolkit-Multi-Platform\dist\index.js"
+```
+
+Verify the registration with `codex mcp list` and `codex mcp get rpgmaker`, then use `/mcp` in Codex. Restart the ChatGPT desktop app or IDE extension after changing the shared configuration.
+
+> **Transport note:** `http://127.0.0.1:9001` (MZ/MV) and TCP port `9002` (VX Ace/VX/XP) are game runtime bridges, not MCP endpoints. Do not register either one as Streamable HTTP. ChatGPT web does not load local STDIO configuration; hosted use requires a remote MCP-backed plugin or an [OpenAI Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels). Avoid starting multiple local instances when using the fixed runtime bridge ports.
+
 ### Connecting to Claude Desktop
 
 Add this block to `claude_desktop_config.json`:
@@ -523,6 +579,62 @@ BACKUP_MAX_COUNT=10     # cuántos backups conservar por archivo de datos
 npm run dev    # desarrollo con recarga automática
 npm run build && npm start   # producción
 ```
+
+### Conectar la aplicación de escritorio de ChatGPT y Codex
+
+Este servidor expone MCP mediante **STDIO** local. La configuración recomendada es registrar el archivo compilado `dist/index.js` como servidor STDIO; la aplicación de escritorio de ChatGPT, Codex CLI y la extensión de Codex para IDE comparten la misma configuración MCP en un host de Codex. Consulta la [documentación de Model Context Protocol de OpenAI](https://learn.chatgpt.com/docs/extend/mcp).
+
+Ejecuta primero `npm run build` y usa rutas absolutas adecuadas para tu sistema operativo:
+
+| Valor | Ejemplo en macOS | Ejemplo en Windows |
+|---|---|---|
+| Ejecutable de Node | `/opt/homebrew/bin/node` (Apple Silicon) o `/usr/local/bin/node` (Intel) | `C:\Program Files\nodejs\node.exe` |
+| Entrada del toolkit | `/Users/tu-usuario/Proyectos/RPG-Maker-AI-Toolkit-Multi-Platform/dist/index.js` | `C:\Users\tu-usuario\Proyectos\RPG-Maker-AI-Toolkit-Multi-Platform\dist\index.js` |
+| Directorio de trabajo | `/Users/tu-usuario/Proyectos/RPG-Maker-AI-Toolkit-Multi-Platform` | `C:\Users\tu-usuario\Proyectos\RPG-Maker-AI-Toolkit-Multi-Platform` |
+| Proyecto RPG Maker | `/Users/tu-usuario/Documentos/Juegos/MiJuego` | `C:\Users\tu-usuario\Documentos\Juegos\MiJuego` |
+
+Usa `command -v node` en macOS o `(Get-Command node).Source` en Windows PowerShell para encontrar el ejecutable real de Node. En los campos de ChatGPT y en argumentos entre comillas de PowerShell, las rutas de Windows usan una sola barra inversa; las barras dobles solo son necesarias en formatos como cadenas JSON.
+
+#### Aplicación de escritorio de ChatGPT
+
+1. Abre **Settings → MCP servers → Add server**.
+2. Usa el nombre `rpgmaker` y selecciona **STDIO**.
+3. Completa **Command**, **Arguments** y **Working directory** con la columna correspondiente de la tabla. El único argumento es la ruta absoluta a `dist/index.js`.
+4. Añade estas variables de entorno:
+
+   ```text
+   RPGMAKER_PROJECT_PATH=<ruta absoluta al proyecto RPG Maker>
+   RPGMAKER_ENGINE=mz
+   ```
+
+   Cambia el engine a `mv`, `vxace`, `vx` o `xp` cuando corresponda. Los engines Ruby también pueden necesitar `RUBY_PATH`.
+5. Guarda el servidor y selecciona **Restart**. Escribe `/mcp` para confirmar que `rpgmaker` está conectado.
+
+#### Codex CLI y extensión para IDE
+
+La CLI es la forma más reproducible de crear la configuración compartida. En macOS:
+
+```bash
+codex mcp add rpgmaker \
+  --env RPGMAKER_PROJECT_PATH="/Users/tu-usuario/Documentos/Juegos/MiJuego" \
+  --env RPGMAKER_ENGINE=mz \
+  -- "/opt/homebrew/bin/node" \
+  "/Users/tu-usuario/Proyectos/RPG-Maker-AI-Toolkit-Multi-Platform/dist/index.js"
+```
+
+En Windows PowerShell:
+
+```powershell
+codex mcp add rpgmaker `
+  --env "RPGMAKER_PROJECT_PATH=C:\Users\tu-usuario\Documentos\Juegos\MiJuego" `
+  --env RPGMAKER_ENGINE=mz `
+  -- "C:\Program Files\nodejs\node.exe" `
+  "C:\Users\tu-usuario\Proyectos\RPG-Maker-AI-Toolkit-Multi-Platform\dist\index.js"
+```
+
+Verifica el registro con `codex mcp list` y `codex mcp get rpgmaker`, y después usa `/mcp` en Codex. Reinicia la aplicación de escritorio de ChatGPT o la extensión para IDE después de modificar la configuración compartida.
+
+> **Nota de transporte:** `http://127.0.0.1:9001` (MZ/MV) y el puerto TCP `9002` (VX Ace/VX/XP) son bridges del juego, no endpoints MCP. No registres ninguno como Streamable HTTP. ChatGPT web no carga la configuración STDIO local; para uso alojado se necesita un plugin con MCP remoto o un [OpenAI Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels). Evita iniciar varias instancias locales cuando uses los puertos fijos del bridge.
 
 ### Conexión con Claude Desktop
 

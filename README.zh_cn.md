@@ -107,6 +107,62 @@ npm start
 
 配置有效时，启动日志会显示已找到的 RPG Maker 引擎与项目路径。
 
+## 接入 ChatGPT 桌面 App 与 Codex
+
+本服务器通过本地 **STDIO** 提供 MCP。推荐把编译后的 `dist/index.js` 注册为 STDIO 服务器；同一 Codex 主机上的 ChatGPT 桌面 App、Codex CLI 和 Codex IDE 扩展会共享 MCP 配置。详见 OpenAI 官方的 [Model Context Protocol 文档](https://learn.chatgpt.com/docs/extend/mcp)。
+
+先运行 `npm run build`，再根据操作系统填写对应的绝对路径：
+
+| 配置项 | macOS 示例 | Windows 示例 |
+|---|---|---|
+| Node 可执行文件 | `/opt/homebrew/bin/node`（Apple Silicon）或 `/usr/local/bin/node`（Intel） | `C:\Program Files\nodejs\node.exe` |
+| 工具包入口文件 | `/Users/your-name/Projects/RPG-Maker-AI-Toolkit-Multi-Platform/dist/index.js` | `C:\Users\your-name\Projects\RPG-Maker-AI-Toolkit-Multi-Platform\dist\index.js` |
+| 工具包工作目录 | `/Users/your-name/Projects/RPG-Maker-AI-Toolkit-Multi-Platform` | `C:\Users\your-name\Projects\RPG-Maker-AI-Toolkit-Multi-Platform` |
+| RPG Maker 项目 | `/Users/your-name/Documents/Games/MyGame` | `C:\Users\your-name\Documents\Games\MyGame` |
+
+macOS 使用 `command -v node`、Windows PowerShell 使用 `(Get-Command node).Source`，可以取得本机真实的 Node 路径。Windows 路径在 ChatGPT App 字段和带引号的 PowerShell 参数中直接使用单个反斜杠；只有写入 JSON 字符串等格式时才需要双反斜杠。
+
+### ChatGPT 桌面 App
+
+1. 打开 **Settings → MCP servers → Add server**。
+2. 名称填写 `rpgmaker`，传输方式选择 **STDIO**。
+3. 根据上表填写 **Command**、**Arguments** 和 **Working directory**；唯一的参数是 `dist/index.js` 的绝对路径。
+4. 添加以下环境变量：
+
+   ```text
+   RPGMAKER_PROJECT_PATH=<RPG Maker 项目的绝对路径>
+   RPGMAKER_ENGINE=mz
+   ```
+
+   根据项目改为 `mv`、`vxace`、`vx` 或 `xp`。Ruby 引擎可能还需要配置 `RUBY_PATH`。
+5. 保存后选择 **Restart**。在输入框中输入 `/mcp`，确认 `rpgmaker` 已连接。
+
+### Codex CLI 与 IDE 扩展
+
+使用 CLI 是创建共享配置最容易复现的方式。macOS 执行：
+
+```bash
+codex mcp add rpgmaker \
+  --env RPGMAKER_PROJECT_PATH="/Users/your-name/Documents/Games/MyGame" \
+  --env RPGMAKER_ENGINE=mz \
+  -- "/opt/homebrew/bin/node" \
+  "/Users/your-name/Projects/RPG-Maker-AI-Toolkit-Multi-Platform/dist/index.js"
+```
+
+Windows PowerShell 执行：
+
+```powershell
+codex mcp add rpgmaker `
+  --env "RPGMAKER_PROJECT_PATH=C:\Users\your-name\Documents\Games\MyGame" `
+  --env RPGMAKER_ENGINE=mz `
+  -- "C:\Program Files\nodejs\node.exe" `
+  "C:\Users\your-name\Projects\RPG-Maker-AI-Toolkit-Multi-Platform\dist\index.js"
+```
+
+执行 `codex mcp list` 和 `codex mcp get rpgmaker` 检查注册结果，然后在 Codex 中使用 `/mcp` 查看服务器。共享配置发生变化后，需要重启 ChatGPT 桌面 App 或 IDE 扩展。
+
+> **传输方式说明：** `http://127.0.0.1:9001`（MZ/MV）和 TCP 端口 `9002`（VX Ace/VX/XP）是游戏运行时桥接，并非 MCP endpoint，不要把它们注册为 Streamable HTTP。ChatGPT Web 不读取本地 STDIO 配置；托管使用需要远程 MCP 插件或 [OpenAI Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels)。使用固定运行时桥接端口时，应避免同时启动多个本地实例。
+
 ## 连接 Claude Desktop
 
 在 `claude_desktop_config.json` 中添加：
