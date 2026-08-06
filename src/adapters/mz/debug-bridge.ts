@@ -49,6 +49,12 @@ interface PendingCommand {
   args: Record<string, unknown>;
 }
 
+export interface DebugBridgeOptions {
+  host?: string;
+  port?: number;
+  enabled?: boolean;
+}
+
 export class RPGMakerDebugBridge {
   private pendingCmd: PendingCommand | null = null;
   private events: BattleLogEntry[] = [];
@@ -56,8 +62,59 @@ export class RPGMakerDebugBridge {
   private gameConnected = false;
   private gameState: GameState | null = null;
   private ackResolvers: Array<(value: boolean) => void> = [];
+  private readonly bridgeHost: string;
+  private readonly bridgePort: number;
+  private available: boolean;
+  private unavailableMessage: string | null = null;
+
+  constructor(options: DebugBridgeOptions = {}) {
+    this.bridgeHost = options.host ?? "127.0.0.1";
+    this.bridgePort = options.port ?? 9001;
+    this.available = options.enabled !== false;
+    if (!this.available) {
+      this.unavailableMessage = "MZ/MV runtime bridge is disabled by RPGMAKER_BRIDGE_ENABLED=false";
+    }
+  }
+
+  get host(): string {
+    return this.bridgeHost;
+  }
+
+  get port(): number {
+    return this.bridgePort;
+  }
+
+  get baseUrl(): string {
+    const host = this.bridgeHost.includes(":") ? `[${this.bridgeHost}]` : this.bridgeHost;
+    return `http://${host}:${this.bridgePort}`;
+  }
+
+  endpoint(pathname: string): string {
+    return `${this.baseUrl}${pathname.startsWith("/") ? pathname : `/${pathname}`}`;
+  }
+
+  disable(reason: string): void {
+    this.available = false;
+    this.unavailableMessage = reason;
+    this.gameConnected = false;
+  }
+
+  get isAvailable(): boolean {
+    return this.available;
+  }
+
+  get unavailableReason(): string | null {
+    return this.unavailableMessage;
+  }
+
+  private assertAvailable(): void {
+    if (!this.available) {
+      throw new Error(this.unavailableMessage || "MZ/MV runtime bridge is unavailable");
+    }
+  }
 
   setCommand(cmd: string, args: Record<string, unknown>): void {
+    this.assertAvailable();
     this.pendingCmd = { command: cmd, args };
     this.events = [];
     this.finalState = null;
@@ -103,6 +160,7 @@ export class RPGMakerDebugBridge {
   }
 
   async waitForBattle(timeout = 120000): Promise<EncounterResult> {
+    this.assertAvailable();
     const start = Date.now();
     while (Date.now() - start < timeout) {
       if (this.finalState && !this.finalState.inBattle) {
@@ -120,6 +178,7 @@ export class RPGMakerDebugBridge {
   }
 
   async waitForGameState(timeout = 10000): Promise<GameState> {
+    this.assertAvailable();
     this.gameState = null;
     const start = Date.now();
     while (Date.now() - start < timeout) {
@@ -135,6 +194,7 @@ export class RPGMakerDebugBridge {
   }
 
   async waitForAck(timeout = 10000): Promise<boolean> {
+    this.assertAvailable();
     return new Promise<boolean>((resolve) => {
       const timer = setTimeout(() => {
         const idx = this.ackResolvers.indexOf(resolve);

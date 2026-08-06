@@ -2,6 +2,9 @@ import type { HandlerContext } from "../../handlers/types.js";
 import { resolveHandler } from "../../core/resolve-handler.js";
 
 export async function handleRuntimeInspect(ctx: HandlerContext): Promise<string> {
+  if ((ctx.engine === "mz" || ctx.engine === "mv") && ctx.debugBridge.isAvailable === false) {
+    return JSON.stringify({ error: ctx.debugBridge.unavailableReason || "MZ/MV runtime bridge is unavailable" });
+  }
   const input = ctx.input;
   const type = input.type as string;
 

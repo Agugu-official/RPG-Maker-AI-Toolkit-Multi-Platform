@@ -6,8 +6,6 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import * as fs from "fs";
 import * as path from "path";
 import * as http from "http";
-import { z } from "zod";
-type ZodTypeAny = z.ZodTypeAny;
 
 // RPG Maker utilities
 import { RPGMakerReader } from "./adapters/mz/reader.js";
@@ -23,6 +21,7 @@ import { XPWriter } from "./adapters/xp/writer.js";
 import { RPGMakerDebugBridge } from "./adapters/mz/debug-bridge.js";
 import type { BattleState, GameState } from "./adapters/mz/debug-bridge.js";
 import { ChangeLog } from "./core/change-log.js";
+import { jsonSchemaToZod, type JsonObjectSchema } from "./core/json-schema-to-zod.js";
 
 // Tool definitions (internal — batch-edit only)
 import { BatchEditTool } from "./adapters/mz/tools/batch-edit.js";
@@ -89,20 +88,40 @@ const RPGMAKER_ENGINE = (process.env.RPGMAKER_ENGINE || "mz").toLowerCase();
 const SUPPORTED_ENGINES = ["mz", "mv", "vxace", "vx", "xp"] as const;
 type SupportedEngine = typeof SUPPORTED_ENGINES[number];
 const DEBUG = process.env.MCP_DEBUG === "true";
-const LOG_LEVEL = process.env.LOG_LEVEL || "info";
-const BRIDGE_PORT      = 9001;
+const LOG_LEVELS = ["debug", "info", "warn", "error"] as const;
+type LogLevel = typeof LOG_LEVELS[number];
+const configuredLogLevel = (process.env.LOG_LEVEL || "info").toLowerCase();
+const LOG_LEVEL: LogLevel = LOG_LEVELS.includes(configuredLogLevel as LogLevel)
+  ? configuredLogLevel as LogLevel
+  : "info";
+const BRIDGE_HOST = process.env.RPGMAKER_BRIDGE_HOST?.trim() || "127.0.0.1";
+const parsedBridgePort = Number(process.env.RPGMAKER_BRIDGE_PORT || "9001");
+const bridgePortIsValid = Number.isInteger(parsedBridgePort) && parsedBridgePort >= 1 && parsedBridgePort <= 65535;
+const BRIDGE_PORT = bridgePortIsValid ? parsedBridgePort : 9001;
+const HTTP_BRIDGE_ENGINE = RPGMAKER_ENGINE === "mz" || RPGMAKER_ENGINE === "mv";
+const BRIDGE_ENABLED = HTTP_BRIDGE_ENGINE && process.env.RPGMAKER_BRIDGE_ENABLED?.toLowerCase() !== "false" && bridgePortIsValid;
 const RUBY_BRIDGE_PORT = parseInt(process.env.RUBY_BRIDGE_PORT || "9002", 10);
 const MAX_BACKUPS      = parseInt(process.env.BACKUP_MAX_COUNT || "10", 10);
+const REFRESH_MAP_VERSION_ID = process.env.RPGMAKER_REFRESH_VERSION_ID?.toLowerCase() !== "false";
+
+function shouldLog(level: LogLevel): boolean {
+  if (level === "debug" && DEBUG) return true;
+  return LOG_LEVELS.indexOf(level) >= LOG_LEVELS.indexOf(LOG_LEVEL);
+}
 
 const logger = {
   debug: (msg: string, data?: unknown) => {
-    if (LOG_LEVEL === "debug" || DEBUG) {
+    if (shouldLog("debug")) {
       console.error(`[DEBUG] ${msg}`, data ? JSON.stringify(data, null, 2) : "");
     }
   },
-  info: (msg: string) => console.error(`[INFO] ${msg}`),
-  warn: (msg: string, data?: unknown) => console.error(`[WARN] ${msg}`, data ? JSON.stringify(data, null, 2) : ""),
-  error: (msg: string, data?: unknown) => console.error(`[ERROR] ${msg}`, data ? JSON.stringify(data, null, 2) : ""),
+  info: (msg: string) => { if (shouldLog("info")) console.error(`[INFO] ${msg}`); },
+  warn: (msg: string, data?: unknown) => {
+    if (shouldLog("warn")) console.error(`[WARN] ${msg}`, data ? JSON.stringify(data, null, 2) : "");
+  },
+  error: (msg: string, data?: unknown) => {
+    if (shouldLog("error")) console.error(`[ERROR] ${msg}`, data ? JSON.stringify(data, null, 2) : "");
+  },
 };
 
 function validateSetup(): boolean {
@@ -127,45 +146,8 @@ function validateSetup(): boolean {
   return true;
 }
 
-// JSON Schema → Zod conversion (for tool registration)
-type JsonSchemaProperty = {
-  type?: string;
-  enum?: unknown[];
-  description?: string;
-  properties?: Record<string, JsonSchemaProperty>;
-  items?: JsonSchemaProperty;
-  required?: string[];
-};
-type JsonObjectSchema = JsonSchemaProperty & { type: "object"; properties?: Record<string, JsonSchemaProperty>; required?: string[] };
-
-function jsonSchemaPropertyToZod(schema: JsonSchemaProperty): ZodTypeAny {
-  let zodSchema: ZodTypeAny;
-  if (schema.enum && schema.enum.length > 0) {
-    zodSchema = z.enum(schema.enum.map(String) as [string, ...string[]]);
-  } else {
-    switch (schema.type) {
-      case "number": case "integer": zodSchema = z.number(); break;
-      case "boolean": zodSchema = z.boolean(); break;
-      case "array": zodSchema = z.array(schema.items ? jsonSchemaPropertyToZod(schema.items) : z.unknown()); break;
-      case "object": zodSchema = jsonSchemaToZod(schema as JsonObjectSchema); break;
-      default: zodSchema = z.string();
-    }
-  }
-  return schema.description ? zodSchema.describe(schema.description) : zodSchema;
-}
-
-function jsonSchemaToZod(schema: JsonObjectSchema): z.ZodObject<z.ZodRawShape> {
-  const required = new Set(schema.required || []);
-  const shape: Record<string, ZodTypeAny> = {};
-  for (const [name, prop] of Object.entries(schema.properties || {})) {
-    const s = jsonSchemaPropertyToZod(prop);
-    shape[name] = required.has(name) ? s : s.optional();
-  }
-  return z.object(shape);
-}
-
-function toolInputSchemaToZod(tool: Tool): z.ZodObject<z.ZodRawShape> {
-  return jsonSchemaToZod(tool.inputSchema);
+function toolInputSchemaToZod(tool: Tool) {
+  return jsonSchemaToZod(tool.inputSchema as JsonObjectSchema);
 }
 
 // Tool registry
@@ -239,7 +221,7 @@ const RUBY_EVENT_CMD_TOOLS = new Set<string>([
   "export-dialogue", "story-generator", "edit-troop-events",
 ]);
 
-const debugBridge = new RPGMakerDebugBridge();
+const debugBridge = new RPGMakerDebugBridge({ host: BRIDGE_HOST, port: BRIDGE_PORT, enabled: BRIDGE_ENABLED });
 const rubyBridge  = new RPGMakerRubyBridge(RUBY_BRIDGE_PORT);
 // changeLog is a singleton so all tool calls share the same log file
 let changeLog: ChangeLog;
@@ -272,7 +254,13 @@ async function handleToolCall(toolName: string, toolInput: Record<string, unknow
   }
 
   const readerOpts = { projectPath: RPGMAKER_PROJECT_PATH!, debug: DEBUG };
-  const writerOpts = { projectPath: RPGMAKER_PROJECT_PATH!, createBackup: true, debug: DEBUG, maxBackups: MAX_BACKUPS };
+  const writerOpts = {
+    projectPath: RPGMAKER_PROJECT_PATH!,
+    createBackup: true,
+    debug: DEBUG,
+    maxBackups: MAX_BACKUPS,
+    refreshMapVersionId: REFRESH_MAP_VERSION_ID,
+  };
   let reader;
   let writer;
   if (RPGMAKER_ENGINE === "vxace") {
@@ -326,6 +314,12 @@ async function handleToolCall(toolName: string, toolInput: Record<string, unknow
 
 async function main() {
   logger.info("=== RPG Maker MCP Server Starting ===");
+
+  if (HTTP_BRIDGE_ENGINE && !bridgePortIsValid) {
+    logger.error(
+      `Invalid RPGMAKER_BRIDGE_PORT=${JSON.stringify(process.env.RPGMAKER_BRIDGE_PORT)}; MZ/MV runtime bridge disabled. File tools remain available.`,
+    );
+  }
 
   if (!validateSetup()) process.exit(1);
 
@@ -389,9 +383,18 @@ async function main() {
     res.writeHead(404); res.end();
   });
 
-  httpServer.listen(BRIDGE_PORT, "127.0.0.1", () => {
-    logger.info(`✓ Game bridge HTTP on port ${BRIDGE_PORT}`);
-  });
+  if (BRIDGE_ENABLED) {
+    httpServer.on("error", (error) => {
+      const reason = `MZ/MV runtime bridge unavailable at ${debugBridge.baseUrl}: ${(error as Error).message}`;
+      debugBridge.disable(reason);
+      logger.error(`${reason}. File tools and the STDIO MCP server remain available.`);
+    });
+    httpServer.listen(BRIDGE_PORT, BRIDGE_HOST, () => {
+      logger.info(`✓ Game bridge HTTP at ${debugBridge.baseUrl}`);
+    });
+  } else if (HTTP_BRIDGE_ENGINE && bridgePortIsValid) {
+    logger.info("MZ/MV runtime bridge disabled by RPGMAKER_BRIDGE_ENABLED=false");
+  }
 
   const transport = new StdioServerTransport();
   await server.connect(transport);

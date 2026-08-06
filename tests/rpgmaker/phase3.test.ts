@@ -235,7 +235,7 @@ describe("RPGMakerWriter writeMap MapInfos validation", () => {
   it("updates System.json versionId after writing a map", () => {
     const writer = new RPGMakerWriter({ projectPath: dir, createBackup: false });
     const beforeVersion = (readJson(path.join(dir, "data", "System.json")) as { versionId: number }).versionId;
-    writer.writeMap(1, validMapData);
+    writer.writeMap(1, { ...validMapData, width: validMapData.width + 1 });
     const afterVersion = (readJson(path.join(dir, "data", "System.json")) as { versionId: number }).versionId;
     expect(afterVersion).not.toBe(beforeVersion);
   });

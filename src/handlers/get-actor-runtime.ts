@@ -10,6 +10,7 @@ export async function handleGetActorRuntime(ctx: HandlerContext): Promise<string
 
   const actorId = input.actor_id as number;
   if (!actorId) return JSON.stringify({ error: "actor_id is required" });
+  const gameStateUrl = JSON.stringify(debugBridge.endpoint("/gamestate"));
 
   const script = `(function(){
     var actor = $gameActors.actor(${actorId});
@@ -30,7 +31,7 @@ export async function handleGetActorRuntime(ctx: HandlerContext): Promise<string
         isAlive: actor.isAlive()
       };
     }
-    fetch('http://127.0.0.1:9001/gamestate', {
+    fetch(${gameStateUrl}, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({

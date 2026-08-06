@@ -5,7 +5,6 @@ import { RPGMakerValidator } from "../adapters/mz/validator.js";
 import { PluginTemplates } from "../adapters/mz/templates/plugin-template.js";
 import type { HandlerContext } from "./types.js";
 
-const BRIDGE_PORT = 9001;
 const __dirname   = path.dirname(fileURLToPath(import.meta.url));
 const GAME_BRIDGE_PATH = path.join(__dirname, "../adapters/ruby-bridge/game-bridge.rb");
 
@@ -220,7 +219,9 @@ export async function handleSetupDebugPlugin(ctx: HandlerContext): Promise<strin
   }
 
   try {
-    const pluginCode = PluginTemplates.debugBridge(BRIDGE_PORT);
+    const bridgePort = ctx.debugBridge.port;
+    const bridgeHost = ctx.debugBridge.host;
+    const pluginCode = PluginTemplates.debugBridge(bridgePort, bridgeHost);
 
     const validation = RPGMakerValidator.validateJavaScript(pluginCode);
     if (!validation.valid) {
@@ -269,16 +270,17 @@ export async function handleSetupDebugPlugin(ctx: HandlerContext): Promise<strin
       tool: "setup-debug-plugin",
       entityType: "Plugin",
       action,
-      summary: `Debug bridge plugin installed on port ${BRIDGE_PORT}; synced ${newlyRegistered.length} additional plugins`,
+      summary: `Debug bridge plugin installed at ${ctx.debugBridge.baseUrl}; synced ${newlyRegistered.length} additional plugins`,
     });
 
     return JSON.stringify({
       success: true,
       message: alreadyRegistered
-        ? `Debug plugin updated (port ${BRIDGE_PORT})`
-        : `Debug plugin installed (port ${BRIDGE_PORT})`,
+        ? `Debug plugin updated (${ctx.debugBridge.baseUrl})`
+        : `Debug plugin installed (${ctx.debugBridge.baseUrl})`,
       filename,
-      port: BRIDGE_PORT,
+      host: bridgeHost,
+      port: bridgePort,
       synced_plugins: newlyRegistered,
       instructions: [
         "1. Close and reopen the project in RPG Maker MZ editor (so it picks up the changes)",

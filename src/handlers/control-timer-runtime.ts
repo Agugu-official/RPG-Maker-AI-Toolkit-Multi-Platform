@@ -9,13 +9,14 @@ export async function handleControlTimerRuntime(ctx: HandlerContext): Promise<st
   if (!debugBridge.connected) return notConnected();
 
   const action = input.action as string;
+  const gameStateUrl = JSON.stringify(debugBridge.endpoint("/gamestate"));
 
   try {
     if (action === "get") {
       const script = `(function(){
         var working = $gameTimer ? $gameTimer.isWorking() : false;
         var seconds = $gameTimer ? $gameTimer.seconds() : 0;
-        fetch('http://127.0.0.1:9001/gamestate', {
+        fetch(${gameStateUrl}, {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({

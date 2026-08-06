@@ -7,6 +7,7 @@ function notConnected(): string {
 export async function handleGetMapStateRuntime(ctx: HandlerContext): Promise<string> {
   const { debugBridge } = ctx;
   if (!debugBridge.connected) return notConnected();
+  const gameStateUrl = JSON.stringify(debugBridge.endpoint("/gamestate"));
 
   const script = `(function(){
     var result = {
@@ -21,7 +22,7 @@ export async function handleGetMapStateRuntime(ctx: HandlerContext): Promise<str
       weather: $gameScreen._weather,
       parallaxName: $gameMap._parallaxName
     };
-    fetch('http://127.0.0.1:9001/gamestate', {
+    fetch(${gameStateUrl}, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({

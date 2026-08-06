@@ -7,6 +7,9 @@ const ACTION_TO_TOOL: Record<string, string> = {
 };
 
 export async function handleBattleSim(ctx: HandlerContext): Promise<string> {
+  if ((ctx.engine === "mz" || ctx.engine === "mv") && ctx.debugBridge.isAvailable === false) {
+    return JSON.stringify({ error: ctx.debugBridge.unavailableReason || "MZ/MV runtime bridge is unavailable" });
+  }
   const action = ctx.input.action as string;
   const data = (ctx.input.data ?? {}) as Record<string, unknown>;
 

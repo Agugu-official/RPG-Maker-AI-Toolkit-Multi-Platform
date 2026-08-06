@@ -58,6 +58,10 @@ RPGMAKER_EXECUTABLE_PATH=C:\Program Files\RPG Maker MZ\RPGMakerMZ.exe
 # RUBY_PATH=ruby
 
 # Optional
+RPGMAKER_BRIDGE_HOST=127.0.0.1
+RPGMAKER_BRIDGE_PORT=9001
+RPGMAKER_BRIDGE_ENABLED=true
+RPGMAKER_REFRESH_VERSION_ID=true
 MCP_DEBUG=false
 LOG_LEVEL=info          # debug | info | warn | error
 BACKUP_MAX_COUNT=10     # how many backup files to keep per data file
@@ -130,7 +134,7 @@ codex mcp add rpgmaker `
 
 Verify the registration with `codex mcp list` and `codex mcp get rpgmaker`, then use `/mcp` in Codex. Restart the ChatGPT desktop app or IDE extension after changing the shared configuration.
 
-> **Transport note:** `http://127.0.0.1:9001` (MZ/MV) and TCP port `9002` (VX Ace/VX/XP) are game runtime bridges, not MCP endpoints. Do not register either one as Streamable HTTP. ChatGPT web does not load local STDIO configuration; hosted use requires a remote MCP-backed plugin or an [OpenAI Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels). Avoid starting multiple local instances when using the fixed runtime bridge ports.
+> **Transport note:** `http://127.0.0.1:9001` (MZ/MV default) and TCP port `9002` (VX Ace/VX/XP default) are game runtime bridges, not MCP endpoints. Do not register either one as Streamable HTTP. ChatGPT web does not load local STDIO configuration; hosted use requires a remote MCP-backed plugin or an [OpenAI Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels). Give concurrent MZ/MV instances different `RPGMAKER_BRIDGE_PORT` values.
 
 ### Connecting to Claude Desktop
 
@@ -154,8 +158,8 @@ Add this block to `claude_desktop_config.json`:
 
 | Engine | Format | `RPGMAKER_ENGINE` | Runtime bridge |
 |---|---|---|---|
-| RPG Maker MZ | JSON | `mz` (default) | Yes — HTTP (port 9001) |
-| RPG Maker MV | JSON | `mv` | Yes — HTTP (port 9001) |
+| RPG Maker MZ | JSON | `mz` (default) | Yes — HTTP (default port 9001) |
+| RPG Maker MV | JSON | `mv` | Yes — HTTP (default port 9001) |
 | RPG Maker VX Ace | `.rvdata2` (Marshal) | `vxace` | Yes — TCP (port 9002) |
 | RPG Maker VX | `.rvdata` (Marshal) | `vx` | Yes — TCP (port 9002) |
 | RPG Maker XP | `.rxdata` (Marshal) | `xp` | Yes — TCP (port 9002) |
@@ -436,11 +440,13 @@ Maximum 50 operations per call. Nested `batch-edit` calls are rejected. Use this
 
 ### Runtime Bridge Setup
 
-#### MZ / MV — HTTP bridge (port 9001)
+#### MZ / MV — HTTP bridge (default port 9001)
 
 1. Call `game-setup` with `action: "setup-debug"` — installs `RPGMakerDebugger.js`
 2. Enable the plugin in the RPG Maker Plugin Manager
 3. Press Play / F5 — the plugin polls the MCP server every 500 ms
+
+Configure the listener with `RPGMAKER_BRIDGE_HOST`, `RPGMAKER_BRIDGE_PORT`, and `RPGMAKER_BRIDGE_ENABLED`. `game-setup` embeds the same host and port in the generated plugin. If the port is occupied, runtime calls are disabled but the STDIO server and file tools remain available. Use a different port per concurrent MCP instance.
 
 #### VX Ace / VX / XP — TCP bridge (port 9002)
 
@@ -568,6 +574,10 @@ RPGMAKER_EXECUTABLE_PATH=C:\Program Files\RPG Maker MZ\RPGMakerMZ.exe
 # RUBY_PATH=ruby
 
 # Opcional
+RPGMAKER_BRIDGE_HOST=127.0.0.1
+RPGMAKER_BRIDGE_PORT=9001
+RPGMAKER_BRIDGE_ENABLED=true
+RPGMAKER_REFRESH_VERSION_ID=true
 MCP_DEBUG=false
 LOG_LEVEL=info
 BACKUP_MAX_COUNT=10     # cuántos backups conservar por archivo de datos
@@ -634,7 +644,7 @@ codex mcp add rpgmaker `
 
 Verifica el registro con `codex mcp list` y `codex mcp get rpgmaker`, y después usa `/mcp` en Codex. Reinicia la aplicación de escritorio de ChatGPT o la extensión para IDE después de modificar la configuración compartida.
 
-> **Nota de transporte:** `http://127.0.0.1:9001` (MZ/MV) y el puerto TCP `9002` (VX Ace/VX/XP) son bridges del juego, no endpoints MCP. No registres ninguno como Streamable HTTP. ChatGPT web no carga la configuración STDIO local; para uso alojado se necesita un plugin con MCP remoto o un [OpenAI Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels). Evita iniciar varias instancias locales cuando uses los puertos fijos del bridge.
+> **Nota de transporte:** `http://127.0.0.1:9001` (valor predeterminado para MZ/MV) y el puerto TCP `9002` (valor predeterminado para VX Ace/VX/XP) son bridges del juego, no endpoints MCP. No registres ninguno como Streamable HTTP. ChatGPT web no carga la configuración STDIO local; para uso alojado se necesita un plugin con MCP remoto o un [OpenAI Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels). Asigna un `RPGMAKER_BRIDGE_PORT` distinto a cada instancia MZ/MV concurrente.
 
 ### Conexión con Claude Desktop
 
@@ -656,8 +666,8 @@ Verifica el registro con `codex mcp list` y `codex mcp get rpgmaker`, y después
 
 | Engine | Formato | `RPGMAKER_ENGINE` | Bridge en tiempo real |
 |---|---|---|---|
-| RPG Maker MZ | JSON | `mz` (por defecto) | Sí — HTTP (puerto 9001) |
-| RPG Maker MV | JSON | `mv` | Sí — HTTP (puerto 9001) |
+| RPG Maker MZ | JSON | `mz` (por defecto) | Sí — HTTP (puerto predeterminado 9001) |
+| RPG Maker MV | JSON | `mv` | Sí — HTTP (puerto predeterminado 9001) |
 | RPG Maker VX Ace | `.rvdata2` (Marshal) | `vxace` | Sí — TCP (puerto 9002) |
 | RPG Maker VX | `.rvdata` (Marshal) | `vx` | Sí — TCP (puerto 9002) |
 | RPG Maker XP | `.rxdata` (Marshal) | `xp` | Sí — TCP (puerto 9002) |
@@ -898,11 +908,13 @@ Máximo 50 operaciones por llamada. Las llamadas anidadas de `batch-edit` son re
 
 ### Configuración del bridge en tiempo real
 
-#### MZ / MV — bridge HTTP (puerto 9001)
+#### MZ / MV — bridge HTTP (puerto predeterminado 9001)
 
 1. Llamar `game-setup` con `action: "setup-debug"` — instala `RPGMakerDebugger.js`
 2. Activar el plugin en el Plugin Manager de RPG Maker
 3. Pulsar Play / F5 — el plugin consulta el servidor MCP cada 500 ms
+
+Configura el listener con `RPGMAKER_BRIDGE_HOST`, `RPGMAKER_BRIDGE_PORT` y `RPGMAKER_BRIDGE_ENABLED`. `game-setup` incorpora el mismo host y puerto en el plugin generado. Si el puerto está ocupado, las operaciones de runtime se desactivan, pero el servidor STDIO y las herramientas de archivos siguen disponibles. Usa un puerto distinto para cada instancia MCP concurrente.
 
 #### VX Ace / VX / XP — bridge TCP (puerto 9002)
 

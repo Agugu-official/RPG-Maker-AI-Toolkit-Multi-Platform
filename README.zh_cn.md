@@ -72,6 +72,14 @@ RUBY_PATH=ruby
 RUBY_BRIDGE_PORT=9002
 RUBY_BRIDGE_TIMEOUT=8000
 
+# MZ/MV HTTP 运行时桥接；并行实例应使用不同端口
+RPGMAKER_BRIDGE_HOST=127.0.0.1
+RPGMAKER_BRIDGE_PORT=9001
+RPGMAKER_BRIDGE_ENABLED=true
+
+# 地图变化后是否刷新 System.json.versionId
+RPGMAKER_REFRESH_VERSION_ID=true
+
 # 日志与备份
 MCP_DEBUG=false
 LOG_LEVEL=info
@@ -86,6 +94,10 @@ BACKUP_MAX_COUNT=10
 | `RUBY_PATH` | `ruby` | Ruby 引擎的 Marshal 数据桥接 |
 | `RUBY_BRIDGE_PORT` | `9002` | Ruby 引擎的运行时 TCP 端口 |
 | `RUBY_BRIDGE_TIMEOUT` | `8000` | Ruby 运行时查询超时，单位为毫秒 |
+| `RPGMAKER_BRIDGE_HOST` | `127.0.0.1` | MZ/MV HTTP 运行时桥接监听地址及插件连接地址 |
+| `RPGMAKER_BRIDGE_PORT` | `9001` | MZ/MV HTTP 运行时桥接端口；并行实例应分别配置 |
+| `RPGMAKER_BRIDGE_ENABLED` | `true` | 是否启动 MZ/MV HTTP 运行时桥接 |
+| `RPGMAKER_REFRESH_VERSION_ID` | `true` | 地图发生语义变化后是否刷新 `System.json.versionId` |
 | `MCP_DEBUG` | `false` | 是否输出详细调试日志 |
 | `LOG_LEVEL` | `info` | `debug`、`info`、`warn` 或 `error` |
 | `BACKUP_MAX_COUNT` | `10` | 每个源文件最多保留的备份数 |
@@ -161,7 +173,7 @@ codex mcp add rpgmaker `
 
 执行 `codex mcp list` 和 `codex mcp get rpgmaker` 检查注册结果，然后在 Codex 中使用 `/mcp` 查看服务器。共享配置发生变化后，需要重启 ChatGPT 桌面 App 或 IDE 扩展。
 
-> **传输方式说明：** `http://127.0.0.1:9001`（MZ/MV）和 TCP 端口 `9002`（VX Ace/VX/XP）是游戏运行时桥接，并非 MCP endpoint，不要把它们注册为 Streamable HTTP。ChatGPT Web 不读取本地 STDIO 配置；托管使用需要远程 MCP 插件或 [OpenAI Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels)。使用固定运行时桥接端口时，应避免同时启动多个本地实例。
+> **传输方式说明：** `http://127.0.0.1:9001`（MZ/MV 默认值）和 TCP 端口 `9002`（VX Ace/VX/XP 默认值）是游戏运行时桥接，并非 MCP endpoint，不要把它们注册为 Streamable HTTP。ChatGPT Web 不读取本地 STDIO 配置；托管使用需要远程 MCP 插件或 [OpenAI Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels)。并行启动 MZ/MV 实例时，应为每个实例配置不同的 `RPGMAKER_BRIDGE_PORT`。
 
 ## 连接 Claude Desktop
 
@@ -188,8 +200,8 @@ codex mcp add rpgmaker `
 
 | 引擎 | 项目数据格式 | `RPGMAKER_ENGINE` | 运行时桥接 |
 |---|---|---|---|
-| RPG Maker MZ | JSON | `mz`（默认） | HTTP，端口 9001 |
-| RPG Maker MV | JSON | `mv` | HTTP，端口 9001 |
+| RPG Maker MZ | JSON | `mz`（默认） | HTTP，默认端口 9001 |
+| RPG Maker MV | JSON | `mv` | HTTP，默认端口 9001 |
 | RPG Maker VX Ace | `.rvdata2`（Marshal） | `vxace` | TCP，端口 9002 |
 | RPG Maker VX | `.rvdata`（Marshal） | `vx` | TCP，端口 9002 |
 | RPG Maker XP | `.rxdata`（Marshal） | `xp` | TCP，端口 9002 |
@@ -427,11 +439,13 @@ VX Ace、VX 和 XP 使用 Ruby 脚本：
 
 ## 配置运行时桥接
 
-### MZ / MV：HTTP 桥接（端口 9001）
+### MZ / MV：HTTP 桥接（默认端口 9001）
 
 1. 调用 `game-setup`，设置 `action: "setup-debug"`，安装 `RPGMakerDebugger.js`。
 2. 在 RPG Maker 插件管理器中启用该插件。
 3. 运行游戏或按 F5；插件会每 500 毫秒轮询 MCP 服务器。
+
+使用 `RPGMAKER_BRIDGE_HOST`、`RPGMAKER_BRIDGE_PORT` 和 `RPGMAKER_BRIDGE_ENABLED` 配置监听端。`game-setup` 生成插件时会写入同一 host/port。端口被占用时，仅运行时操作会禁用；STDIO MCP 服务和文件工具仍可继续使用。并行实例必须使用不同端口。
 
 ### VX Ace / VX / XP：TCP 桥接（端口 9002）
 

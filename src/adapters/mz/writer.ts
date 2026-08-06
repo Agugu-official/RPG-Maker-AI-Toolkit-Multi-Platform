@@ -4,6 +4,7 @@
 
 import * as fs from "fs";
 import * as path from "path";
+import { isDeepStrictEqual } from "node:util";
 import type { IProjectWriter } from "../../core/types/writer.js";
 
 export interface WriteOptions {
@@ -11,6 +12,7 @@ export interface WriteOptions {
   createBackup?: boolean;
   debug?: boolean;
   maxBackups?: number;
+  refreshMapVersionId?: boolean;
 }
 
 type RPGDatabaseEntry = Record<string, unknown> & {
@@ -33,6 +35,7 @@ export class RPGMakerWriter implements IProjectWriter {
   private createBackup: boolean;
   private debug: boolean;
   private maxBackups: number;
+  private refreshMapVersionId: boolean;
 
   constructor(options: WriteOptions) {
     this.projectPath = options.projectPath;
@@ -41,6 +44,7 @@ export class RPGMakerWriter implements IProjectWriter {
     this.createBackup = options.createBackup !== false;
     this.debug = options.debug || false;
     this.maxBackups = options.maxBackups ?? 10;
+    this.refreshMapVersionId = options.refreshMapVersionId !== false;
 
     if (!fs.existsSync(this.dataPath)) {
       throw new Error(
@@ -87,25 +91,92 @@ export class RPGMakerWriter implements IProjectWriter {
   /**
    * Escribe un archivo JSON con validación
    */
+  private serializeNativeArray(data: unknown[], lineEnding: string): string {
+    const entries = Array.from(data, (entry) => JSON.stringify(entry) ?? "null");
+    return "[" + lineEnding + entries.join("," + lineEnding) + lineEnding + "]";
+  }
+
+  private serializeNativeMap(data: Record<string, unknown>, lineEnding: string): string {
+    const header = Object.entries(data)
+      .filter(([key, value]) => key !== "data" && key !== "events" && value !== undefined)
+      .map(([key, value]) => `${JSON.stringify(key)}:${JSON.stringify(value)}`)
+      .join(",");
+    const mapData = JSON.stringify(data.data ?? []);
+    const events = Array.isArray(data.events) ? data.events : [];
+    const eventLines = Array.from(events, (event) => JSON.stringify(event) ?? "null");
+
+    return [
+      "{",
+      header ? `${header},` : "",
+      `"data":${mapData},`,
+      '"events":[',
+      eventLines.join("," + lineEnding),
+      "]",
+      "}",
+    ].filter((line, index) => line !== "" || index === 0).join(lineEnding);
+  }
+
+  private serializeJson(filename: string, data: unknown, existingContent: string | null): string {
+    const lineEnding = existingContent?.includes("\r\n") ? "\r\n" : "\n";
+    const hadTrailingNewline = existingContent === null || existingContent.endsWith("\n");
+    const withoutTrailingNewline = existingContent?.replace(/\r?\n$/, "") ?? null;
+    let serialized: string | undefined;
+
+    if (
+      /^Map\d{3}\.json$/.test(filename) &&
+      typeof data === "object" &&
+      data !== null &&
+      Array.isArray((data as Record<string, unknown>).data) &&
+      Array.isArray((data as Record<string, unknown>).events) &&
+      (existingContent === null || /^\{\r?\n\S/.test(existingContent))
+    ) {
+      serialized = this.serializeNativeMap(data as Record<string, unknown>, lineEnding);
+    } else if (
+      Array.isArray(data) &&
+      (existingContent === null || /^\[\r?\n\S/.test(existingContent))
+    ) {
+      serialized = this.serializeNativeArray(data, lineEnding);
+    } else {
+      const indentation = withoutTrailingNewline?.match(/\n([\t ]+)\S/)?.[1];
+      serialized = indentation
+        ? JSON.stringify(data, null, indentation)
+        : JSON.stringify(data);
+      if (lineEnding === "\r\n") serialized = serialized?.replace(/\n/g, lineEnding);
+    }
+
+    if (serialized === undefined) {
+      throw new Error(`${filename} cannot be serialized as JSON`);
+    }
+    return serialized + (hadTrailingNewline ? lineEnding : "");
+  }
+
   private writeJsonFile(
     filename: string,
     data: unknown,
     createBackup = true
-  ): void {
+  ): boolean {
     const filePath = path.join(this.dataPath, filename);
 
-    // Crear backup antes de escribir
-    if (createBackup) {
-      this.createBackupFile(filename);
-    }
-
     try {
-      const jsonContent = JSON.stringify(data, null, 2) + "\n";
+      const existingContent = fs.existsSync(filePath)
+        ? fs.readFileSync(filePath, "utf-8")
+        : null;
+      if (existingContent !== null) {
+        try {
+          if (isDeepStrictEqual(JSON.parse(existingContent), data)) return false;
+        } catch {
+          // Preserve the normal write path for malformed existing JSON.
+        }
+      }
+
+      const jsonContent = this.serializeJson(filename, data, existingContent);
+      if (createBackup) this.createBackupFile(filename);
       fs.writeFileSync(filePath, jsonContent, "utf-8");
 
       if (this.debug) {
         console.log(`[DEBUG] File written: ${filePath}`);
       }
+      return true;
     } catch (error) {
       throw new Error(
         `Failed to write ${filename}: ${(error as Error).message}`
@@ -142,16 +213,16 @@ export class RPGMakerWriter implements IProjectWriter {
   }
 
   /**
-   * Escribe un mapa RPG Maker MZ por ID y actualiza MapInfos.json + System.json.versionId
+   * Escribe un mapa RPG Maker MZ y, si se proporciona, actualiza MapInfos.json.
    */
   writeMap(mapId: number, mapData: unknown, mapInfo?: unknown): void {
     const mapFilename = `Map${String(mapId).padStart(3, "0")}.json`;
 
-    // Escribe el archivo del mapa
-    this.writeJsonFile(mapFilename, mapData);
-
     // Validate mapInfo before writing (throws if invalid)
     if (mapInfo !== undefined) {
+      if (typeof mapInfo !== "object" || mapInfo === null) {
+        throw new Error("mapInfo must be an object");
+      }
       const info = mapInfo as Record<string, unknown>;
       const required = ["id", "name", "parentId", "order", "expanded", "scrollX", "scrollY"];
       const missing = required.filter((k) => !(k in info));
@@ -163,41 +234,39 @@ export class RPGMakerWriter implements IProjectWriter {
       }
     }
 
-    // Actualiza MapInfos.json (asegura longitud y valor)
-    const mapInfosPath = path.join(this.dataPath, "MapInfos.json");
-    try {
-      let mapInfos: Array<Record<string, unknown> | null> = [];
-      if (fs.existsSync(mapInfosPath)) {
-        const content = fs.readFileSync(mapInfosPath, "utf-8");
-        try {
-          mapInfos = JSON.parse(content) as Array<Record<string, unknown> | null>;
-        } catch {
-          mapInfos = [];
+    const mapChanged = this.writeJsonFile(mapFilename, mapData);
+    let mapInfoChanged = false;
+
+    if (mapInfo !== undefined) {
+      const mapInfosPath = path.join(this.dataPath, "MapInfos.json");
+      try {
+        let mapInfos: Array<Record<string, unknown> | null> = [];
+        if (fs.existsSync(mapInfosPath)) {
+          const content = fs.readFileSync(mapInfosPath, "utf-8");
+          try {
+            mapInfos = JSON.parse(content) as Array<Record<string, unknown> | null>;
+          } catch {
+            mapInfos = [];
+          }
         }
-      }
 
-      // Asegurar tamaño suficiente
-      while (mapInfos.length <= mapId) {
-        mapInfos.push(null);
-      }
-
-      if (mapInfo !== undefined) {
+        while (mapInfos.length <= mapId) mapInfos.push(null);
         mapInfos[mapId] = mapInfo as Record<string, unknown>;
-      }
-
-      this.writeJsonFile("MapInfos.json", mapInfos);
-    } catch (error) {
-      if (this.debug) {
-        console.error("Failed to update MapInfos.json:", error);
+        mapInfoChanged = this.writeJsonFile("MapInfos.json", mapInfos);
+      } catch (error) {
+        if (this.debug) {
+          console.error("Failed to update MapInfos.json:", error);
+        }
       }
     }
 
-    // Refresh System.json versionId para forzar recarga del editor
-    try {
-      this.refreshVersionId();
-    } catch (error) {
-      if (this.debug) {
-        console.error("Failed to refresh System.json versionId:", error);
+    if (this.refreshMapVersionId && (mapChanged || mapInfoChanged)) {
+      try {
+        this.refreshVersionId();
+      } catch (error) {
+        if (this.debug) {
+          console.error("Failed to refresh System.json versionId:", error);
+        }
       }
     }
   }

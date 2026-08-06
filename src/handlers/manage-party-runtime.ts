@@ -10,6 +10,7 @@ export async function handleManagePartyRuntime(ctx: HandlerContext): Promise<str
 
   const action = input.action as "add" | "remove" | "get";
   const actorId = input.actor_id as number | undefined;
+  const gameStateUrl = JSON.stringify(debugBridge.endpoint("/gamestate"));
 
   if ((action === "add" || action === "remove") && !actorId) {
     return JSON.stringify({ error: "actor_id is required for add/remove actions" });
@@ -21,7 +22,7 @@ export async function handleManagePartyRuntime(ctx: HandlerContext): Promise<str
         var members = $gameParty.allMembers().map(function(m) {
           return { id: m.actorId(), name: m.name(), hp: m.hp, maxHp: m.mhp, level: m.level };
         });
-        fetch('http://127.0.0.1:9001/gamestate', {
+        fetch(${gameStateUrl}, {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({

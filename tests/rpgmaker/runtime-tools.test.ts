@@ -19,6 +19,7 @@ function makeBridge(overrides?: {
   const qr = overrides?.queryResult !== undefined ? overrides.queryResult : null;
   return {
     connected: overrides?.connected !== undefined ? overrides.connected : true,
+    endpoint: vi.fn((pathname: string) => `http://127.0.0.1:9001${pathname}`),
     waitForAck: vi.fn().mockResolvedValue(undefined),
     waitForGameState: vi.fn().mockResolvedValue({
       mapId: 1,

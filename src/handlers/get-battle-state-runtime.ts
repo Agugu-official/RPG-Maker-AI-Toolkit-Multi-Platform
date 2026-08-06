@@ -7,6 +7,7 @@ function notConnected(): string {
 export async function handleGetBattleStateRuntime(ctx: HandlerContext): Promise<string> {
   const { debugBridge } = ctx;
   if (!debugBridge.connected) return notConnected();
+  const gameStateUrl = JSON.stringify(debugBridge.endpoint("/gamestate"));
 
   const script = `(function(){
     var inBattle = !!$gameTroop && typeof $gameTroop.inBattle === 'function' ? $gameTroop.inBattle() : false;
@@ -22,7 +23,7 @@ export async function handleGetBattleStateRuntime(ctx: HandlerContext): Promise<
         return { id: a.actorId(), name: a.name(), hp: a.hp, mhp: a.mhp, mp: a.mp, alive: a.isAlive() };
       });
     }
-    fetch('http://127.0.0.1:9001/gamestate', {
+    fetch(${gameStateUrl}, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({

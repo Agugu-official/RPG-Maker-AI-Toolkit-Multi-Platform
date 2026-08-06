@@ -31,6 +31,19 @@ describe("RPGMakerDebugBridge", () => {
       bridge.markConnected();
       expect(bridge.connected).toBe(true);
     });
+
+    it("uses configured host and port for runtime endpoints", () => {
+      bridge = new RPGMakerDebugBridge({ host: "localhost", port: 19001 });
+      expect(bridge.baseUrl).toBe("http://localhost:19001");
+      expect(bridge.endpoint("/gamestate")).toBe("http://localhost:19001/gamestate");
+    });
+
+    it("fails runtime waits immediately after the bridge is disabled", async () => {
+      bridge.disable("bridge port is occupied");
+      expect(bridge.isAvailable).toBe(false);
+      await expect(bridge.waitForGameState()).rejects.toThrow("bridge port is occupied");
+      await expect(bridge.waitForAck()).rejects.toThrow("bridge port is occupied");
+    });
   });
 
   describe("command queue", () => {

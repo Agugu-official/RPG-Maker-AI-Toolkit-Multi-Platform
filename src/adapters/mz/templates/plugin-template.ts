@@ -215,7 +215,8 @@ export const PluginTemplates = {
   },
 
   // Template: Debug Bridge plugin (AI runtime control via XHR)
-  debugBridge: (bridgePort = 9001): string => {
+  debugBridge: (bridgePort = 9001, bridgeHost = "127.0.0.1"): string => {
+    const bridgeUrl = `http://${bridgeHost.includes(":") ? `[${bridgeHost}]` : bridgeHost}:${bridgePort}`;
     return `/*:
  * @target MZ
  * @plugindesc AI Debug Bridge - MCP runtime control
@@ -243,7 +244,7 @@ var RPGMakerDebugger = RPGMakerDebugger || {};
 (function() {
     "use strict";
 
-    var bridgeUrl = "http://127.0.0.1:${bridgePort}";
+    var bridgeUrl = ${JSON.stringify(bridgeUrl)};
     var battleLog = [];
     var isInBattle = false;
     var battleComplete = false;

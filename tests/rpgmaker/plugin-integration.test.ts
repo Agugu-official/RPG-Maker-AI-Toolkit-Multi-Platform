@@ -93,6 +93,11 @@ describe("PluginTemplates.debugBridge", () => {
     expect(code).toContain("@version 2.1.0");
   });
 
+  it("embeds a configured bridge host and port", () => {
+    const configured = PluginTemplates.debugBridge(19001, "localhost");
+    expect(configured).toContain('var bridgeUrl = "http://localhost:19001"');
+  });
+
   it("contains all 6 commands in the dispatcher", () => {
     expect(code).toContain('"start_battle"');
     expect(code).toContain('"set_switch"');
@@ -153,6 +158,17 @@ describe("handleSetupDebugPlugin", () => {
     expect(result.success).toBe(true);
     const pluginPath = path.join(dir, "js", "plugins", "RPGMakerDebugger.js");
     expect(fs.existsSync(pluginPath)).toBe(true);
+  });
+
+  it("uses the shared debug bridge configuration in the plugin and response", async () => {
+    dir = makeTempProject();
+    const bridge = new RPGMakerDebugBridge({ host: "localhost", port: 19001 });
+    const result = JSON.parse(await handleSetupDebugPlugin(makeContext(dir, bridge)));
+    const pluginPath = path.join(dir, "js", "plugins", "RPGMakerDebugger.js");
+    const pluginCode = fs.readFileSync(pluginPath, "utf-8");
+
+    expect(result).toMatchObject({ host: "localhost", port: 19001 });
+    expect(pluginCode).toContain('var bridgeUrl = "http://localhost:19001"');
   });
 
   it("registers RPGMakerDebugger as enabled in plugins.js", async () => {

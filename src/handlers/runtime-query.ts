@@ -10,6 +10,7 @@ export async function handleGetInventory(ctx: HandlerContext): Promise<string> {
   const { input, debugBridge } = ctx;
   if (!debugBridge.connected) return notConnected();
   const category = (input.category as string | undefined) ?? "all";
+  const gameStateUrl = JSON.stringify(debugBridge.endpoint("/gamestate"));
 
   const script = `(function(){
     var result = {};
@@ -23,7 +24,7 @@ export async function handleGetInventory(ctx: HandlerContext): Promise<string> {
       result.armors = $gameParty.armors().map(function(a){return{id:a.id,name:a.name,count:$gameParty.numItems(a)};});
     }
     result.gold = $gameParty.gold();
-    fetch('http://127.0.0.1:9001/gamestate', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mapId:$gameMap.mapId(),playerX:$gamePlayer.x,playerY:$gamePlayer.y,gold:$gameParty.gold(),partyMembers:$gameParty.members().map(function(m){return{name:m.name(),hp:m.hp,mhp:m.mhp,level:m.level};}),inBattle:$gameParty.inBattle(),timestamp:new Date().toISOString(),queryResult:result})});
+    fetch(${gameStateUrl}, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mapId:$gameMap.mapId(),playerX:$gamePlayer.x,playerY:$gamePlayer.y,gold:$gameParty.gold(),partyMembers:$gameParty.members().map(function(m){return{name:m.name(),hp:m.hp,mhp:m.mhp,level:m.level};}),inBattle:$gameParty.inBattle(),timestamp:new Date().toISOString(),queryResult:result})});
   })();`;
 
   try {
@@ -73,6 +74,7 @@ export async function handleGetSwitch(ctx: HandlerContext): Promise<string> {
   const { input, debugBridge, projectPath } = ctx;
   if (!debugBridge.connected) return notConnected();
   const id = input.id as number;
+  const gameStateUrl = JSON.stringify(debugBridge.endpoint("/gamestate"));
 
   // Read switch name from System.json
   let name = `Switch ${id}`;
@@ -84,7 +86,7 @@ export async function handleGetSwitch(ctx: HandlerContext): Promise<string> {
 
   const script = `(function(){
     var v=$gameSwitches.value(${id});
-    fetch('http://127.0.0.1:9001/gamestate', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mapId:$gameMap.mapId(),playerX:$gamePlayer.x,playerY:$gamePlayer.y,gold:$gameParty.gold(),partyMembers:[],inBattle:$gameParty.inBattle(),timestamp:new Date().toISOString(),queryResult:{switchId:${id},value:v}})});
+    fetch(${gameStateUrl}, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mapId:$gameMap.mapId(),playerX:$gamePlayer.x,playerY:$gamePlayer.y,gold:$gameParty.gold(),partyMembers:[],inBattle:$gameParty.inBattle(),timestamp:new Date().toISOString(),queryResult:{switchId:${id},value:v}})});
   })();`;
 
   try {
@@ -101,6 +103,7 @@ export async function handleGetVariable(ctx: HandlerContext): Promise<string> {
   const { input, debugBridge, projectPath } = ctx;
   if (!debugBridge.connected) return notConnected();
   const id = input.id as number;
+  const gameStateUrl = JSON.stringify(debugBridge.endpoint("/gamestate"));
 
   let name = `Variable ${id}`;
   try {
@@ -111,7 +114,7 @@ export async function handleGetVariable(ctx: HandlerContext): Promise<string> {
 
   const script = `(function(){
     var v=$gameVariables.value(${id});
-    fetch('http://127.0.0.1:9001/gamestate', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mapId:$gameMap.mapId(),playerX:$gamePlayer.x,playerY:$gamePlayer.y,gold:$gameParty.gold(),partyMembers:[],inBattle:$gameParty.inBattle(),timestamp:new Date().toISOString(),queryResult:{variableId:${id},value:v}})});
+    fetch(${gameStateUrl}, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mapId:$gameMap.mapId(),playerX:$gamePlayer.x,playerY:$gamePlayer.y,gold:$gameParty.gold(),partyMembers:[],inBattle:$gameParty.inBattle(),timestamp:new Date().toISOString(),queryResult:{variableId:${id},value:v}})});
   })();`;
 
   try {
